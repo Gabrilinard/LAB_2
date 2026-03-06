@@ -100,12 +100,12 @@ Tokenização
 Embeddings
  ↓
 Encoder Transformer (6 camadas)
-    ├ Self Attention
+    ├ Self Attention (com pesos fixos por camada)
     ├ Residual + LayerNorm
-    ├ Feed Forward
+    ├ Feed Forward Network (64 → 256 → 64)
     └ Residual + LayerNorm
  ↓
-Representação final dos tokens
+Representação final dos tokens (Vetor Z)
 ```
 
 ---
@@ -153,19 +153,15 @@ Modelos de IA trabalham com **números**, não diretamente com texto.
 
 ```python
 tamanho_vocabulario = len(mapeamento_palavras)
-d_model = 64  
+d_model = 64
+d_ff = 256
+N = 6
 ```
 
 - `tamanho_vocabulario` → número de palavras no vocabulário  
-- `d_model` → dimensão do vetor de embedding  
-
-Cada palavra será representada por um vetor de **64 números**.
-
-Exemplo:
-
-```
-gabriel → [0.21, -0.45, 1.02, ...]
-```
+- `d_model` → dimensão do vetor de embedding 
+- `d_model` → dimensão da Feed Forward Network (expandindo 64 → 256 → 64)
+- `d_model` → número de camadas do encoder
 
 ---
 
@@ -214,7 +210,7 @@ Cada linha representa uma palavra.
 # Parte 6 — Seleção dos Embeddings da Frase
 
 ```python
-entrada_embeddings = matriz_identidade_visual[tokens_ids] 
+entrada_embeddings = matriz_embeddings[tokens_ids] 
 ```
 
 Formato da matriz:
@@ -275,15 +271,51 @@ Normaliza os valores para estabilizar o modelo.
 
 ---
 
-# Parte 10 — Self Attention
+# Parte 10 — Classe EncoderLayer
 
 ```python
-def mecanismo_atencao(X, d_model):
+class EncoderLayer:
+    def __init__(self, d_model, d_ff):
+        self.d_model = d_model
+        self.d_ff = d_ff
+        self.Wq = np.random.randn(d_model, d_model)
+        self.Wk = np.random.randn(d_model, d_model)
+        self.Wv = np.random.randn(d_model, d_model)
+        self.W1 = np.random.randn(d_model, d_ff)
+        self.b1 = np.zeros(d_ff)
+        self.W2 = np.random.randn(d_ff, d_model)
+        self.b2 = np.zeros(d_model)
+
+    def mecanismo_atencao(self, X):
+        Q = X @ self.Wq  
+        K = X @ self.Wk  
+        V = X @ self.Wv  
+        K_t = np.transpose(K, axes=(0, 2, 1))
+        scores = (Q @ K_t) / np.sqrt(self.d_model)
+        pesos = aplicar_softmax(scores)
+        return pesos @ V
+
+    def rede_feed_forward(self, x):
+        intermediario = np.maximum(0, x @ self.W1 + self.b1)
+        return intermediario @ self.W2 + self.b2
+
+    def forward(self, X):
+        X_att = self.mecanismo_atencao(X)
+        X_norm1 = camada_normalizacao(X + X_att)
+        X_ffn = self.rede_feed_forward(X_norm1)
+        X_out = camada_normalizacao(X_norm1 + X_ffn)
+        return X_out
 ```
 
-O **Self-Attention** permite que cada palavra observe todas as outras palavras da frase.
+Cada camada possui:
 
-Ele cria três representações:
+Pesos fixos para Self-Attention
+
+FFN (64 → 256 → 64)
+
+LayerNorm e conexões residuais
+
+Mecanismo de Atenção cria três representações:
 
 - **Query (Q)**
 - **Key (K)**
@@ -397,17 +429,12 @@ Residual + LayerNorm
 # Parte 13 — Loop das Camadas
 
 ```python
-for i in range(N):
-    X_att = mecanismo_atencao(X, d_model)
-    X_norm1 = camada_normalizacao(X + X_att)
-    X_ffn = rede_feed_forward(X_norm1, d_model)
-    X_out = camada_normalizacao(X_norm1 + X_ffn)
-    X = X_out
-    
+for i, camada in enumerate(camadas_encoder):
+    X = camada.forward(X)
     print(f"Camada {i+1}: Shape mantido em {X.shape}")
 ```
 
-Cada camada refina a representação da frase.
+Cada camada refina a representação da frase mantendo os pesos fixos definidos na inicialização da classe EncoderLayer.
 
 ---
 
@@ -435,7 +462,7 @@ print(Z[0,0,:5])
 
 Isso imprime **os primeiros 5 valores do vetor da palavra "gabriel"** após todo o processamento.
 
-Esse vetor agora contém **informação contextual da frase inteira**.
+Este vetor contém informação contextual de toda a frase, pois cada camada do encoder aplica Self-Attention e Feed Forward Network.
 
 ---
 

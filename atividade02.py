@@ -5,23 +5,23 @@ mapeamento_palavras = {"gabriel": 0, "fez": 1, "a": 2, "atividade": 3}
 vocabulario_df = pd.DataFrame(list(mapeamento_palavras.items()), columns=['Palavra', 'ID'])
 
 tamanho_vocabulario = len(mapeamento_palavras)
-d_model = 64  
+d_model = 64
+d_ff = 256
+N = 6 
 
 frase_exemplo = "gabriel fez a atividade"
 tokens_ids = [mapeamento_palavras[palavra] for palavra in frase_exemplo.split()]
 
 np.random.seed(10)
-matriz_identidade_visual = np.random.randn(tamanho_vocabulario, d_model)
-
-entrada_embeddings = matriz_identidade_visual[tokens_ids] 
+matriz_embeddings = np.random.randn(tamanho_vocabulario, d_model)
+entrada_embeddings = matriz_embeddings[tokens_ids] 
 
 X = np.expand_dims(entrada_embeddings, axis=0) 
 
 print("\n--- Tabela de Vocabulário ---")
 print(vocabulario_df.to_string(index=False))
-
 print("\n--- Dimensões do Processamento ---")
-print(f"Tabela de Embeddings (Vocabulário x Dimensão): {matriz_identidade_visual.shape}")
+print(f"Tabela de Embeddings (Vocabulário x Dimensão): {matriz_embeddings.shape}")
 print(f"Tensor Final X (Batch, Sequência, Dimensão): {X.shape}")
 
 def aplicar_softmax(x):
@@ -33,43 +33,44 @@ def camada_normalizacao(x, epsilon=1e-6):
     variancia = np.var(x, axis=-1, keepdims=True)
     return (x - media) / np.sqrt(variancia + epsilon)
 
-def mecanismo_atencao(X, d_model):
-    Wq = np.random.randn(d_model, d_model)
-    Wk = np.random.randn(d_model, d_model)
-    Wv = np.random.randn(d_model, d_model)
-    
-    Q = X @ Wq  
-    K = X @ Wk  
-    V = X @ Wv  
-    
-    K_t = np.transpose(K, axes=(0, 2, 1))
-    scores = (Q @ K_t) / np.sqrt(d_model)
-    
-    pesos = aplicar_softmax(scores)
-    return pesos @ V
+class EncoderLayer:
+    def __init__(self, d_model, d_ff):
+        self.d_model = d_model
+        self.d_ff = d_ff
+        self.Wq = np.random.randn(d_model, d_model)
+        self.Wk = np.random.randn(d_model, d_model)
+        self.Wv = np.random.randn(d_model, d_model)
+        self.W1 = np.random.randn(d_model, d_ff)
+        self.b1 = np.zeros(d_ff)
+        self.W2 = np.random.randn(d_ff, d_model)
+        self.b2 = np.zeros(d_model)
 
-def rede_feed_forward(x, d_model, d_ff=256):
-    W1 = np.random.randn(d_model, d_ff)
-    b1 = np.zeros(d_ff)
-    
-    W2 = np.random.randn(d_ff, d_model)
-    b2 = np.zeros(d_model)
-    
-    intermediario = np.maximum(0, x @ W1 + b1)
-    return intermediario @ W2 + b2
+    def mecanismo_atencao(self, X):
+        Q = X @ self.Wq  
+        K = X @ self.Wk  
+        V = X @ self.Wv  
+        K_t = np.transpose(K, axes=(0, 2, 1))
+        scores = (Q @ K_t) / np.sqrt(self.d_model)
+        pesos = aplicar_softmax(scores)
+        return pesos @ V
 
-N = 6 
-d_model = 64 
+    def rede_feed_forward(self, x):
+        intermediario = np.maximum(0, x @ self.W1 + self.b1)
+        return intermediario @ self.W2 + self.b2
+
+    def forward(self, X):
+        X_att = self.mecanismo_atencao(X)
+        X_norm1 = camada_normalizacao(X + X_att)
+        X_ffn = self.rede_feed_forward(X_norm1)
+        X_out = camada_normalizacao(X_norm1 + X_ffn)
+        return X_out
+
+np.random.seed(10)
+camadas_encoder = [EncoderLayer(d_model, d_ff) for _ in range(N)]
 
 print(f"--- Iniciando o Encoder Stack (N={N}) ---")
-
-for i in range(N):
-    X_att = mecanismo_atencao(X, d_model)
-    X_norm1 = camada_normalizacao(X + X_att)
-    X_ffn = rede_feed_forward(X_norm1, d_model)
-    X_out = camada_normalizacao(X_norm1 + X_ffn)
-    X = X_out
-    
+for i, camada in enumerate(camadas_encoder):
+    X = camada.forward(X)
     print(f"Camada {i+1}: Shape mantido em {X.shape}")
 
 Vetor_Z = X
