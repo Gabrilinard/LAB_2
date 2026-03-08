@@ -16,13 +16,24 @@ np.random.seed(10)
 matriz_embeddings = np.random.randn(tamanho_vocabulario, d_model)
 entrada_embeddings = matriz_embeddings[tokens_ids] 
 
-X = np.expand_dims(entrada_embeddings, axis=0) 
+def gerar_positional_encoding(max_len, d_model):
+    pe = np.zeros((max_len, d_model))
+    for pos in range(max_len):
+        for i in range(0, d_model, 2):
+            div_term = np.exp(i * -(np.log(10000.0) / d_model))
+            pe[pos, i] = np.sin(pos * div_term)
+            pe[pos, i + 1] = np.cos(pos * div_term)
+    return pe
 
-print("\n--- Tabela de Vocabulário ---")
+pos_encoding = gerar_positional_encoding(len(tokens_ids), d_model)
+X = entrada_embeddings + pos_encoding
+X = np.expand_dims(X, axis=0) 
+
+print("Tabela de Vocabulário: ")
 print(vocabulario_df.to_string(index=False))
-print("\n--- Dimensões do Processamento ---")
-print(f"Tabela de Embeddings (Vocabulário x Dimensão): {matriz_embeddings.shape}")
-print(f"Tensor Final X (Batch, Sequência, Dimensão): {X.shape}")
+print("Dimensões do Processamento:")
+print(f"Tabela de Embeddings: {matriz_embeddings.shape}")
+print(f"Tensor Final X: {X.shape}")
 
 def aplicar_softmax(x):
     e_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
@@ -68,11 +79,11 @@ class EncoderLayer:
 np.random.seed(10)
 camadas_encoder = [EncoderLayer(d_model, d_ff) for _ in range(N)]
 
-print(f"--- Iniciando o Encoder Stack (N={N}) ---")
+print(f"Iniciando a Pilha do Encoder (N={N})")
 for i, camada in enumerate(camadas_encoder):
     X = camada.forward(X)
     print(f"Camada {i+1}: Shape mantido em {X.shape}")
 
 Vetor_Z = X
-print(f"\nValidação do Shape final do Vetor Z: {Vetor_Z.shape}")
+print(f"Validação do Shape final do Vetor Z: {Vetor_Z.shape}")
 print(f"Amostra dos primeiros 5 valores (features) da primeira palavra:\n{Vetor_Z[0, 0, :5]}")

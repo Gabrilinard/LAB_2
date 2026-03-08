@@ -6,6 +6,7 @@ O objetivo é demonstrar de forma clara como funcionam os principais componentes
 
 - Tokenização simples
 - Tabela de embeddings
+- Positional Encoding (Seno e Cosseno)
 - Self-Attention
 - Feed Forward Network
 - Layer Normalization
@@ -93,19 +94,8 @@ gabriel fez a atividade
 Fluxo geral do processamento:
 
 ```
-Frase
- ↓
-Tokenização
- ↓
-Embeddings
- ↓
-Encoder Transformer (6 camadas)
-    ├ Self Attention (com pesos fixos por camada)
-    ├ Residual + LayerNorm
-    ├ Feed Forward Network (64 → 256 → 64)
-    └ Residual + LayerNorm
- ↓
-Representação final dos tokens (Vetor Z)
+Frase - Tokenização - Embeddings - Positional Encoding (Soma de vetores posicionais) - Encoder Transformer (Self-Attention, Residual + LayerNorm, Feed Forward Network, Residual + LayerNorm) - Representação final dos tokens (Vetor Z)
+
 ```
 
 ---
@@ -158,10 +148,10 @@ d_ff = 256
 N = 6
 ```
 
-- `tamanho_vocabulario` → número de palavras no vocabulário  
-- `d_model` → dimensão do vetor de embedding 
-- `d_model` → dimensão da Feed Forward Network (expandindo 64 → 256 → 64)
-- `d_model` → número de camadas do encoder
+- `tamanho_vocabulario` - número de palavras no vocabulário  
+- `d_model` - dimensão do vetor de embedding 
+- `d_model` - dimensão da Feed Forward Network (expandindo 64 - 256 - 64)
+- `d_model` - número de camadas do encoder
 
 ---
 
@@ -207,7 +197,25 @@ Cada linha representa uma palavra.
 
 ---
 
-# Parte 6 — Seleção dos Embeddings da Frase
+# Parte 6 — Positional Encoding 
+Como o Transformer processa todas as palavras ao mesmo tempo, ele não sabe a ordem natural da frase. Para resolver isso, implementamos o Positional Encoding usando funções trigonométricas:
+
+```
+def gerar_positional_encoding(max_len, d_model):
+    pe = np.zeros((max_len, d_model))
+    for pos in range(max_len):
+        for i in range(0, d_model, 2):
+            div_term = np.exp(i * -(np.log(10000.0) / d_model))
+            pe[pos, i] = np.sin(pos * div_term)
+            pe[pos, i + 1] = np.cos(pos * div_term)
+    return pe
+```
+Essas funções permitem que o modelo aprenda relações relativas entre as posições. O resultado é somado diretamente aos embeddings:
+X = entrada_embeddings + pos_encoding
+
+---
+
+# Parte 7 — Seleção dos Embeddings da Frase
 
 ```python
 entrada_embeddings = matriz_embeddings[tokens_ids] 
@@ -224,7 +232,7 @@ Formato da matriz:
 
 ---
 
-# Parte 7 — Dimensão de Batch
+# Parte 8— Dimensão de Batch
 
 ```python
 X = np.expand_dims(entrada_embeddings, axis=0) 
@@ -240,7 +248,7 @@ Formato final:
 
 ---
 
-# Parte 8 — Softmax
+# Parte 9 — Softmax
 
 ```python
 def aplicar_softmax(x):
@@ -258,7 +266,7 @@ softmax(x_i) = e^x_i / Σ e^x_j
 
 ---
 
-# Parte 9 — Layer Normalization
+# Parte 10 — Layer Normalization
 
 ```python
 def camada_normalizacao(x, epsilon=1e-6):
@@ -271,7 +279,7 @@ Normaliza os valores para estabilizar o modelo.
 
 ---
 
-# Parte 10 — Classe EncoderLayer
+# Parte 11 — Classe EncoderLayer
 
 ```python
 class EncoderLayer:
@@ -370,7 +378,7 @@ Produz vetores contextualizados.
 
 ---
 
-# Parte 11 — Feed Forward Network
+# Parte 12 — Feed Forward Network
 
 ```python
 def rede_feed_forward(x, d_model, d_ff=256):
@@ -404,7 +412,7 @@ Dimensões:
 
 ---
 
-# Parte 12 — Encoder Transformer
+# Parte 13 — Encoder Transformer
 
 ```python
 N = 6
@@ -426,7 +434,7 @@ Residual + LayerNorm
 
 ---
 
-# Parte 13 — Loop das Camadas
+# Parte 14 — Loop das Camadas
 
 ```python
 for i, camada in enumerate(camadas_encoder):
@@ -438,7 +446,7 @@ Cada camada refina a representação da frase mantendo os pesos fixos definidos 
 
 ---
 
-# Parte 14 — Representação Final
+# Parte 15 — Representação Final
 
 ```python
 Vetor_Z = X
@@ -454,7 +462,7 @@ Formato:
 
 ---
 
-# Parte 15 — Saída Final
+# Parte 16 — Saída Final
 
 ```python
 print(Z[0,0,:5])
@@ -473,7 +481,6 @@ Esta implementação é **didática**.
 Não inclui:
 
 - treinamento do modelo
-- positional encoding
 - multi-head attention
 - decoder
 - backpropagation
@@ -484,7 +491,6 @@ Não inclui:
 
 O projeto pode evoluir adicionando:
 
-- **Positional Encoding**
 - **Multi Head Attention**
 - **Decoder Transformer**
 - **Treinamento com PyTorch ou TensorFlow**
@@ -501,4 +507,4 @@ Este código tem como objetivo ajudar a entender:
 
 ## . Nota de Integridade e Créditos
 Este trabalho seguiu rigorosamente as diretrizes de integridade do laboratório:
-- **Uso de IA:** Ferramentas de IA Generativa (Gemini/ChatGPT) foram consultadas exclusivamente para suporte em sintaxe da biblioteca `numpy` (como manipulação de eixos no `np.mean` e lógica de transposição de tensores 3D) e para auxílio na estruturação deste documento explicativo. Elas auxiliaram na resolução de dúvidas de sintaxe da biblioteca numpy e no brainstorming para a estruturação lógica em pequenas partes do código, dúvidas mesmo. Mas toda a implementação foi eu tentando fazer a mão e entender cada parte do código e fazer de acordo com o que foi pedido no laboratório. A documentação foram revisados e validados por mim, garantindo que o trabalho reflita meu entendimento sobre o funcionamento do Encoder Transformer, conforme as regras do contrato pedagógico.
+- **Uso de IA:** Ferramentas de IA Generativa (Gemini/ChatGPT) foram consultadas exclusivamente para suporte em sintaxe da biblioteca `numpy` (como manipulação de eixos no `np.mean` e lógica de transposição de tensores 3D) e para auxílio na estruturação deste documento explicativo. Elas auxiliaram na resolução de dúvidas de sintaxe da biblioteca numpy e no brainstorming para a estruturação lógica em pequenas partes do código, dúvidas mesmo. Mas toda a implementação foi eu tentando fazer a mão e entender cada parte do código e fazer de acordo com o que foi pedido no laboratório. A documentação foI revisada e validada por mim, garantindo que o trabalho reflita meu entendimento sobre o funcionamento do Encoder Transformer, conforme as regras do contrato pedagógico.
